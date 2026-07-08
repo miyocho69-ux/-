@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const supabase = createAdminClient();
 
-  const startedAt = new Date().toISOString();
   let lastRun: {
     status: "success" | "partial" | "failed";
     finished_at: string;
@@ -15,42 +14,52 @@ export default async function Home() {
     error_message: string | null;
   } | null = null;
 
-  try {
-    const result = await syncHoldingPrices();
-    const finishedAt = new Date().toISOString();
-    lastRun = {
-      status: result.status,
-      finished_at: finishedAt,
-      failed_tickers: result.failedTickers,
-      error_message: result.errorMessage,
-    };
-    await supabase.from("price_sync_runs").upsert({
-      id: true,
-      started_at: startedAt,
-      finished_at: finishedAt,
-      status: result.status,
-      synced_count: result.syncedCount,
-      failed_tickers: result.failedTickers,
-      error_message: result.errorMessage,
-    });
-  } catch (err) {
-    const finishedAt = new Date().toISOString();
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    lastRun = {
-      status: "failed",
-      finished_at: finishedAt,
-      failed_tickers: [],
-      error_message: errorMessage,
-    };
-    await supabase.from("price_sync_runs").upsert({
-      id: true,
-      started_at: startedAt,
-      finished_at: finishedAt,
-      status: "failed",
-      synced_count: 0,
-      failed_tickers: [],
-      error_message: errorMessage,
-    });
+  if (process.env.ENABLE_LOCAL_PRICE_SYNC === "true") {
+    const startedAt = new Date().toISOString();
+    try {
+      const result = await syncHoldingPrices();
+      const finishedAt = new Date().toISOString();
+      lastRun = {
+        status: result.status,
+        finished_at: finishedAt,
+        failed_tickers: result.failedTickers,
+        error_message: result.errorMessage,
+      };
+      await supabase.from("price_sync_runs").upsert({
+        id: true,
+        started_at: startedAt,
+        finished_at: finishedAt,
+        status: result.status,
+        synced_count: result.syncedCount,
+        failed_tickers: result.failedTickers,
+        error_message: result.errorMessage,
+      });
+    } catch (err) {
+      const finishedAt = new Date().toISOString();
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      lastRun = {
+        status: "failed",
+        finished_at: finishedAt,
+        failed_tickers: [],
+        error_message: errorMessage,
+      };
+      await supabase.from("price_sync_runs").upsert({
+        id: true,
+        started_at: startedAt,
+        finished_at: finishedAt,
+        status: "failed",
+        synced_count: 0,
+        failed_tickers: [],
+        error_message: errorMessage,
+      });
+    }
+  } else {
+    const { data } = await supabase
+      .from("price_sync_runs")
+      .select("status, finished_at, failed_tickers, error_message")
+      .eq("id", true)
+      .maybeSingle();
+    lastRun = data;
   }
 
   const { data: holdings, error } = await supabase
