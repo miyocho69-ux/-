@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncHoldingPrices } from "@/lib/toss/prices";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const supabase = createAdminClient();
 
@@ -22,7 +24,8 @@ export default async function Home() {
       failed_tickers: result.failedTickers,
       error_message: result.errorMessage,
     };
-    await supabase.from("price_sync_runs").insert({
+    await supabase.from("price_sync_runs").upsert({
+      id: true,
       started_at: startedAt,
       finished_at: finishedAt,
       status: result.status,
@@ -39,7 +42,8 @@ export default async function Home() {
       failed_tickers: [],
       error_message: errorMessage,
     };
-    await supabase.from("price_sync_runs").insert({
+    await supabase.from("price_sync_runs").upsert({
+      id: true,
       started_at: startedAt,
       finished_at: finishedAt,
       status: "failed",

@@ -1,5 +1,7 @@
 # Phase 4 — 토스증권 실시간 시세 연동 설계
 
+> **주의(2026-07-08 사후 업데이트)**: 아래 문서는 최초 설계(cron route + GitHub Actions로 5분마다 갱신) 기준으로 작성됐다. 실제 구현 중 사용자가 배포/시크릿 등록 부담을 이유로 방침을 변경해, **최종적으로는 `/api/cron/toss-price-sync` 라우트와 GitHub Actions 워크플로우를 제거**하고 `src/app/page.tsx`(대시보드 홈)가 페이지 로드마다 `syncHoldingPrices()`를 직접 호출하는 방식으로 대체됐다(`export const dynamic = "force-dynamic"` 필수 — 없으면 빌드 시 정적 스냅샷되어 버려 실제로는 갱신이 안 되므로 주의). `price_sync_runs`도 매번 insert하던 방식에서 최신 1행만 유지하는 싱글턴(`upsert`, `id boolean primary key default true`)으로 변경됐다(`0003_price_sync_runs_singleton.sql`). 아래 "API 라우트"의 cron 항목과 "GitHub Actions" 섹션은 더 이상 유효하지 않다 — 실제 아키텍처는 최종 커밋의 `src/app/page.tsx`, `src/lib/toss/prices.ts`를 참고할 것.
+
 ## 배경
 
 `supabase/migrations/0001_init.sql`에 이미 `toss_credentials` 테이블(client_id/secret을 Supabase Vault로 암호화 저장하는 구조)이 있었지만, 이 프로젝트의 다른 시크릿(Supabase admin key 등)은 전부 Vercel 환경변수로 관리하고 있어 방식을 통일한다. 원래 설계 문서(`C:\Users\miyoc\.claude\plans\swift-launching-sparkle.md`)는 `/api/v1/assets`, "ASSET 5 TPS / ACCOUNT 1 TPS" 같은 추정 스펙을 담고 있었으나, 실제 공식 OpenAPI 스펙(`https://openapi.tossinvest.com/openapi-docs/latest/openapi.json`)을 직접 받아 확인한 결과 다음과 같이 다르다:

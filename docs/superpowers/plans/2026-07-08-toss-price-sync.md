@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **주의(2026-07-08 사후 업데이트)**: Task 5(cron route)와 Task 7(GitHub Actions)은 원래 계획대로 구현되고 개별 리뷰까지 통과했으나, 이후 사용자가 GitHub/Vercel 시크릿 등록 부담을 이유로 방침을 바꿔 **최종 커밋에서 두 산출물 모두 삭제**됐다. 대신 `src/app/page.tsx`가 페이지 로드마다 `syncHoldingPrices()`를 직접 호출하는 방식으로 대체(전체 브랜치 최종 리뷰에서 `export const dynamic = "force-dynamic"` 누락으로 인한 정적 스냅샷 문제, `price_sync_runs` 무한 증가 문제, fetch 타임아웃 부재를 지적받아 모두 수정 완료). Task 1-4, 6은 아래 내용 그대로 유효하다. Task 5/7과 "GitHub Actions" 관련 섹션은 참고용 이력으로만 남겨둔다.
+
 **Goal:** `holdings` 테이블의 보유 종목 현재가를 토스증권 Open API(`/api/v1/prices`)로 5분마다 자동 갱신하고, 대시보드에 평가손익과 갱신 상태를 표시한다.
 
 **Architecture:** Next.js Route Handler(`/api/cron/toss-price-sync`)가 토스 OAuth2 토큰을 발급/캐싱(`src/lib/toss/auth.ts`)하고, `holdings.ticker`를 모아 시세를 조회(`src/lib/toss/prices.ts`)해 DB에 반영한다. GitHub Actions가 5분마다 이 라우트를 `CRON_SECRET`으로 인증 호출한다. 실행 결과는 `price_sync_runs` 테이블에 기록되고 대시보드가 최신 행을 읽어 상태 배지로 보여준다.

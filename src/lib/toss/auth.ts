@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const TOKEN_URL = "https://openapi.tossinvest.com/oauth2/token";
 const EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 10_000;
 
 interface TossCredentialsRow {
   access_token_encrypted: string | null;
@@ -26,6 +27,7 @@ async function fetchNewToken(): Promise<{ accessToken: string; expiresAt: Date }
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   if (!res.ok) {

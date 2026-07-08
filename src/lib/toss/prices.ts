@@ -4,6 +4,7 @@ import { getTossAccessToken } from "@/lib/toss/auth";
 
 const PRICES_URL = "https://openapi.tossinvest.com/api/v1/prices";
 const CHUNK_SIZE = 200;
+const FETCH_TIMEOUT_MS = 10_000;
 
 export interface SyncResult {
   status: "success" | "partial" | "failed";
@@ -32,6 +33,7 @@ async function fetchPricesChunk(
   const url = `${PRICES_URL}?symbols=${encodeURIComponent(tickers.join(","))}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   if (res.status === 429) {
@@ -39,6 +41,7 @@ async function fetchPricesChunk(
     await new Promise((resolve) => setTimeout(resolve, retryAfterSec * 1000));
     const retryRes = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!retryRes.ok) {
       throw new Error(`가격 조회 재시도 실패 (${retryRes.status})`);
