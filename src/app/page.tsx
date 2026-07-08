@@ -1,8 +1,53 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncHoldingPrices } from "@/lib/toss/prices";
 
 export default async function Home() {
   const supabase = createAdminClient();
+
+  const startedAt = new Date().toISOString();
+  let lastRun: {
+    status: "success" | "partial" | "failed";
+    finished_at: string;
+    failed_tickers: string[] | null;
+    error_message: string | null;
+  } | null = null;
+
+  try {
+    const result = await syncHoldingPrices();
+    const finishedAt = new Date().toISOString();
+    lastRun = {
+      status: result.status,
+      finished_at: finishedAt,
+      failed_tickers: result.failedTickers,
+      error_message: result.errorMessage,
+    };
+    await supabase.from("price_sync_runs").insert({
+      started_at: startedAt,
+      finished_at: finishedAt,
+      status: result.status,
+      synced_count: result.syncedCount,
+      failed_tickers: result.failedTickers,
+      error_message: result.errorMessage,
+    });
+  } catch (err) {
+    const finishedAt = new Date().toISOString();
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    lastRun = {
+      status: "failed",
+      finished_at: finishedAt,
+      failed_tickers: [],
+      error_message: errorMessage,
+    };
+    await supabase.from("price_sync_runs").insert({
+      started_at: startedAt,
+      finished_at: finishedAt,
+      status: "failed",
+      synced_count: 0,
+      failed_tickers: [],
+      error_message: errorMessage,
+    });
+  }
 
   const { data: holdings, error } = await supabase
     .from("holdings")
@@ -12,13 +57,6 @@ export default async function Home() {
   if (error) {
     return <div className="p-8 text-red-600">보유종목을 불러오지 못했습니다: {error.message}</div>;
   }
-
-  const { data: lastRun } = await supabase
-    .from("price_sync_runs")
-    .select("status, finished_at, failed_tickers, error_message")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
   const totalCost = (holdings ?? []).reduce(
     (sum, h) => sum + Number(h.quantity) * Number(h.avg_cost),
