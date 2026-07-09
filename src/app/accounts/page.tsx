@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createAccount, deleteAccount } from "@/lib/actions/accounts";
 
+export const dynamic = "force-dynamic";
+
 export default async function AccountsPage() {
   const supabase = createAdminClient();
   const { data: accounts, error } = await supabase

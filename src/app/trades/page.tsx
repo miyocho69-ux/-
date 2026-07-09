@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createTrade, deleteTrade } from "@/lib/actions/trades";
 
+export const dynamic = "force-dynamic";
+
 export default async function TradesPage() {
   const supabase = createAdminClient();
 

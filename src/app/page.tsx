@@ -53,11 +53,19 @@ function groupRealizedByMonth(
 function groupByTicker(
   holdings: { ticker: string; name: string; quantity: number; avg_cost: number; last_price: number | null }[]
 ): { sector: string; value: number }[] {
-  return holdings
-    .map((h) => {
-      const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
-      return { sector: `${h.name} (${h.ticker})`, value: price * Number(h.quantity) };
-    })
+  const totals = new Map<string, { label: string; value: number }>();
+  for (const h of holdings) {
+    const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
+    const value = price * Number(h.quantity);
+    const existing = totals.get(h.ticker);
+    if (existing) {
+      existing.value += value;
+    } else {
+      totals.set(h.ticker, { label: `${h.name} (${h.ticker})`, value });
+    }
+  }
+  return Array.from(totals.values())
+    .map(({ label, value }) => ({ sector: label, value }))
     .sort((a, b) => b.value - a.value);
 }
 

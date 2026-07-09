@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { setUserSector, clearUserSector } from "@/lib/actions/sectors";
 import { SectorDonutChart, type SectorSlice } from "@/components/SectorDonutChart";
 
+export const dynamic = "force-dynamic";
+
 const UNCLASSIFIED = "미분류";
 
 function groupBySector(
