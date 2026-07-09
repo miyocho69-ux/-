@@ -1,31 +1,18 @@
-import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncHoldingPrices } from "@/lib/toss/prices";
 import { upsertTodaySnapshot } from "@/lib/portfolio/snapshot";
+import { PortfolioTabs } from "@/components/PortfolioTabs";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const supabase = createAdminClient();
 
-  let lastRun: {
-    status: "success" | "partial" | "failed";
-    finished_at: string;
-    failed_tickers: string[] | null;
-    error_message: string | null;
-  } | null = null;
-
   if (process.env.ENABLE_LOCAL_PRICE_SYNC === "true") {
     const startedAt = new Date().toISOString();
     try {
       const result = await syncHoldingPrices();
       const finishedAt = new Date().toISOString();
-      lastRun = {
-        status: result.status,
-        finished_at: finishedAt,
-        failed_tickers: result.failedTickers,
-        error_message: result.errorMessage,
-      };
       await supabase.from("price_sync_runs").upsert({
         id: true,
         started_at: startedAt,
@@ -41,12 +28,6 @@ export default async function Home() {
     } catch (err) {
       const finishedAt = new Date().toISOString();
       const errorMessage = err instanceof Error ? err.message : String(err);
-      lastRun = {
-        status: "failed",
-        finished_at: finishedAt,
-        failed_tickers: [],
-        error_message: errorMessage,
-      };
       await supabase.from("price_sync_runs").upsert({
         id: true,
         started_at: startedAt,
@@ -57,13 +38,6 @@ export default async function Home() {
         error_message: errorMessage,
       });
     }
-  } else {
-    const { data } = await supabase
-      .from("price_sync_runs")
-      .select("status, finished_at, failed_tickers, error_message")
-      .eq("id", true)
-      .maybeSingle();
-    lastRun = data;
   }
 
   const { data: holdings, error } = await supabase
@@ -85,83 +59,18 @@ export default async function Home() {
     return sum + Number(h.quantity) * price;
   }, 0);
 
-  function formatRelativeTime(iso: string | null | undefined) {
-    if (!iso) return "갱신 기록 없음";
-    const diffMs = Date.now() - new Date(iso).getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return "방금 전";
-    if (diffMin < 60) return `${diffMin}분 전`;
-    const diffHour = Math.floor(diffMin / 60);
-    return `${diffHour}시간 전`;
-  }
-
-  const syncBadge = !lastRun ? (
-    <span className="text-xs text-gray-400">시세 동기화 이력 없음</span>
-  ) : lastRun.status === "success" ? (
-    <span className="text-xs text-green-600">
-      시세 갱신: {formatRelativeTime(lastRun.finished_at)}
-    </span>
-  ) : (
-    <span className="text-xs text-red-600" title={lastRun.error_message ?? lastRun.failed_tickers?.join(", ")}>
-      시세 갱신 {lastRun.status === "partial" ? "일부 실패" : "실패"}: {formatRelativeTime(lastRun.finished_at)}
-    </span>
-  );
-
   return (
-    <div className="mx-auto max-w-3xl p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">보유종목</h1>
-        {syncBadge}
+    <div className="mx-auto max-w-3xl p-8 space-y-6">
+      <div>
+        <div className="text-sm text-gray-500">총 평가금액</div>
+        <div className="text-3xl font-bold">{totalValue.toLocaleString()}원</div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border p-4">
-          <div className="text-sm text-gray-500">총 매수원가 합계</div>
-          <div className="text-xl font-semibold">{totalCost.toLocaleString()}원</div>
-        </div>
-        <div className="rounded-lg border p-4">
-          <div className="text-sm text-gray-500">총 평가금액</div>
-          <div className="text-xl font-semibold">{totalValue.toLocaleString()}원</div>
-        </div>
-      </div>
-
-      <ul className="space-y-2">
-        {(holdings ?? []).map((h) => {
-          const account = h.accounts as unknown as { name: string; market: string } | null;
-          const hasPrice = h.last_price != null;
-          const profitLoss = hasPrice
-            ? (Number(h.last_price) - Number(h.avg_cost)) * Number(h.quantity)
-            : null;
-
-          return (
-            <li key={h.id} className="rounded border px-4 py-3">
-              <div className="font-medium">
-                {h.name} ({h.ticker})
-              </div>
-              <div className="text-sm text-gray-500">
-                {account?.name ?? "알 수 없는 계좌"} · {h.quantity}주 · 평단가{" "}
-                {Number(h.avg_cost).toLocaleString()}원
-              </div>
-              <div className="text-sm">
-                {hasPrice ? (
-                  <span className={profitLoss! >= 0 ? "text-red-600" : "text-blue-600"}>
-                    현재가 {Number(h.last_price).toLocaleString()}원 · 평가손익{" "}
-                    {profitLoss! >= 0 ? "+" : ""}
-                    {profitLoss!.toLocaleString()}원
-                  </span>
-                ) : (
-                  <span className="text-gray-400">시세 미확인</span>
-                )}
-              </div>
-            </li>
-          );
-        })}
-        {(holdings ?? []).length === 0 && (
-          <li className="text-gray-500">
-            보유종목이 없습니다. <Link href="/trades" className="underline">매매기록</Link>을 입력해보세요.
-          </li>
-        )}
-      </ul>
+      <PortfolioTabs
+        profitTab={<div className="text-gray-400">수익 탭 (Task 5에서 구현)</div>}
+        trendTab={<div className="text-gray-400">추이 탭 (Task 6에서 구현)</div>}
+        allocationTab={<div className="text-gray-400">비중 탭 (Task 7에서 구현)</div>}
+      />
     </div>
   );
 }
