@@ -103,7 +103,7 @@ export function SectorDonutChart({ slices, title }: { slices: SectorSlice[]; tit
               />
               <span className="flex-1 text-gray-700 dark:text-gray-300">{arc.sector}</span>
               <span className="tabular-nums text-gray-500">
-                {(arc.fraction * 100).toFixed(1)}%
+                {Math.round(arc.value).toLocaleString()}원 · {(arc.fraction * 100).toFixed(1)}%
               </span>
             </li>
           ))}

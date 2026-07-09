@@ -17,20 +17,34 @@ function formatSigned(value: number): string {
 }
 
 function BarChart({ data }: { data: { label: string; value: number }[] }) {
+  const [hovered, setHovered] = useState<{ label: string; value: number } | null>(null);
   const maxAbs = Math.max(1, ...data.map((d) => Math.abs(d.value)));
+
   return (
-    <div className="flex h-32 items-end gap-0.5 overflow-x-auto">
-      {data.map((d) => {
-        const heightPct = (Math.abs(d.value) / maxAbs) * 100;
-        return (
-          <div key={d.label} className="flex min-w-[6px] flex-1 flex-col items-center justify-end" title={`${d.label}: ${formatSigned(d.value)}`}>
+    <div className="relative">
+      {hovered && (
+        <div className="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow dark:bg-gray-100 dark:text-black">
+          {hovered.label}: {formatSigned(hovered.value)}
+        </div>
+      )}
+      <div className="flex h-32 items-end gap-0.5 overflow-x-auto">
+        {data.map((d) => {
+          const heightPct = (Math.abs(d.value) / maxAbs) * 100;
+          return (
             <div
-              className={`w-full rounded-sm ${d.value >= 0 ? "bg-red-500" : "bg-blue-500"}`}
-              style={{ height: `${heightPct}%`, minHeight: d.value !== 0 ? "2px" : "0" }}
-            />
-          </div>
-        );
-      })}
+              key={d.label}
+              className="flex min-w-[6px] flex-1 flex-col items-center justify-end"
+              onMouseEnter={() => setHovered(d)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <div
+                className={`w-full rounded-sm ${d.value >= 0 ? "bg-red-500" : "bg-blue-500"}`}
+                style={{ height: `${heightPct}%`, minHeight: d.value !== 0 ? "2px" : "0" }}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

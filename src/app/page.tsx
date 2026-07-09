@@ -7,6 +7,7 @@ import { PortfolioTabs } from "@/components/PortfolioTabs";
 import { ProfitTab } from "@/components/ProfitTab";
 import { TrendTab } from "@/components/TrendTab";
 import { AllocationTab } from "@/components/AllocationTab";
+import { HoldingsMoversCard, type HoldingMover } from "@/components/HoldingsMoversCard";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,38 @@ function groupByAccountTicker(
   return result;
 }
 
+function computeHoldingsMovers(
+  holdings: { ticker: string; name: string; quantity: number; avg_cost: number; last_price: number | null }[],
+  usdKrwRate: number
+): { name: string; ticker: string; changeRate: number; changeAmount: number }[] {
+  const totals = new Map<string, { name: string; costBasis: number; changeAmount: number }>();
+
+  for (const h of holdings) {
+    if (h.last_price == null) continue; // 시세가 아직 없는 종목은 등락을 표시할 수 없다
+    const costBasis = toKrw(Number(h.avg_cost) * Number(h.quantity), h.ticker, usdKrwRate);
+    const changeAmount = toKrw(
+      (Number(h.last_price) - Number(h.avg_cost)) * Number(h.quantity),
+      h.ticker,
+      usdKrwRate
+    );
+
+    const existing = totals.get(h.ticker);
+    if (existing) {
+      existing.costBasis += costBasis;
+      existing.changeAmount += changeAmount;
+    } else {
+      totals.set(h.ticker, { name: h.name, costBasis, changeAmount });
+    }
+  }
+
+  return Array.from(totals.entries()).map(([ticker, { name, costBasis, changeAmount }]) => ({
+    name,
+    ticker,
+    changeAmount,
+    changeRate: costBasis > 0 ? (changeAmount / costBasis) * 100 : 0,
+  }));
+}
+
 export default async function Home() {
   const supabase = createAdminClient();
 
@@ -189,6 +222,7 @@ export default async function Home() {
 
   const byTicker = groupByTicker(holdings ?? [], usdKrwRate);
   const byAccountTicker = groupByAccountTicker(holdings ?? [], usdKrwRate);
+  const movers: HoldingMover[] = computeHoldingsMovers(holdings ?? [], usdKrwRate);
 
   return (
     <div className="mx-auto max-w-3xl p-8 space-y-6">
@@ -196,6 +230,8 @@ export default async function Home() {
         <div className="text-sm text-gray-500">총 평가금액</div>
         <div className="text-3xl font-bold">{totalValue.toLocaleString()}원</div>
       </div>
+
+      <HoldingsMoversCard movers={movers} />
 
       <PortfolioTabs
         profitTab={
