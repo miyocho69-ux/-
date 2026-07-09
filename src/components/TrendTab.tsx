@@ -1,6 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 
 export interface TrendTabProps {
   snapshots: { date: string; total_value: number; total_cost: number }[];
@@ -17,9 +27,6 @@ const RANGE_LABELS: { key: RangeKey; label: string }[] = [
   { key: "all", label: "전체" },
 ];
 
-// Date를 로컬(KST) 기준 연/월/일로 "YYYY-MM-DD" 문자열로 변환한다.
-// .toISOString()은 UTC로 변환하므로 KST(UTC+9) 자정은 전날 15:00 UTC가 되어
-// slice(0, 10) 시 하루 앞선 날짜가 나오는 문제가 있어 이 함수로 대체한다.
 function toLocalDateString(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -38,44 +45,72 @@ function filterByRange(
     cutoff = range === "month" ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(now.getFullYear(), 0, 1);
   } else {
     const monthsBack = range === "1m" ? 1 : range === "6m" ? 6 : 12;
-    // 주의: 현재 일(day)이 대상 월에 존재하지 않으면(예: 3/31 - 1달 -> 2/31)
-    // Date가 다음 달로 자동 보정한다(2/31 -> 3/2~3). 근사치 필터 용도라 영향은
-    // 미미하지만 정확한 달력 경계가 필요해지면 day-count 기반 계산으로 교체할 것.
     cutoff = new Date(now.getFullYear(), now.getMonth() - monthsBack, now.getDate());
   }
   const cutoffStr = toLocalDateString(cutoff);
   return snapshots.filter((s) => s.date >= cutoffStr);
 }
 
-function LineChart({ snapshots }: { snapshots: TrendTabProps["snapshots"] }) {
+function TrendChart({ snapshots }: { snapshots: TrendTabProps["snapshots"] }) {
   if (snapshots.length === 0) {
-    return <p className="text-sm text-gray-400">표시할 데이터가 없습니다.</p>;
+    return (
+      <p className="text-sm" style={{ color: "var(--text-faint)" }}>
+        표시할 데이터가 없습니다.
+      </p>
+    );
   }
 
-  const width = 320;
-  const height = 160;
-  const values = snapshots.map((s) => s.total_value);
-  const costs = snapshots.map((s) => s.total_cost);
-  const allValues = [...values, ...costs];
-  const min = Math.min(...allValues);
-  const max = Math.max(...allValues);
-  const range = max - min || 1;
-
-  function toPoints(series: number[]): string {
-    return series
-      .map((v, i) => {
-        const x = snapshots.length > 1 ? (i / (snapshots.length - 1)) * width : width / 2;
-        const y = height - ((v - min) / range) * height;
-        return `${x},${y}`;
-      })
-      .join(" ");
-  }
+  const data = snapshots.map((s) => ({
+    date: s.date,
+    원금: Math.round(s.total_cost),
+    총자산: Math.round(s.total_value),
+  }));
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} role="img" aria-label="투자 자산 추이 차트">
-      <polyline points={toPoints(costs)} fill="none" stroke="var(--series-3)" strokeWidth={1.5} strokeDasharray="4 2" />
-      <polyline points={toPoints(values)} fill="none" stroke="var(--series-6)" strokeWidth={2} />
-    </svg>
+    <ResponsiveContainer width="100%" height={260}>
+      <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke="var(--border-row)" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: "var(--text-faint)", fontSize: 11 }}
+          tickFormatter={(v: string) => v.slice(5)}
+          axisLine={{ stroke: "var(--border-row)" }}
+          tickLine={false}
+        />
+        <YAxis
+          tick={{ fill: "var(--text-faint)", fontSize: 11 }}
+          tickFormatter={(v: number) => `${Math.round(v / 10000).toLocaleString()}만`}
+          axisLine={false}
+          tickLine={false}
+          width={56}
+        />
+        <Tooltip
+          contentStyle={{
+            background: "var(--border-row)",
+            border: "1px solid var(--border-input)",
+            borderRadius: 8,
+            fontFamily: "var(--font-jetbrains-mono)",
+            fontSize: 12,
+          }}
+          formatter={(value) => `${Number(value).toLocaleString()}원`}
+        />
+        <Area
+          type="monotone"
+          dataKey="총자산"
+          stroke="var(--accent-teal)"
+          strokeWidth={2.5}
+          fill="rgba(36,211,181,0.08)"
+        />
+        <Line
+          type="monotone"
+          dataKey="원금"
+          stroke="var(--text-faint)"
+          strokeWidth={2}
+          strokeDasharray="4 4"
+          dot={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -85,25 +120,37 @@ export function TrendTab({ snapshots }: TrendTabProps) {
   const latest = filtered[filtered.length - 1];
 
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4 rounded-xl border p-5"
+      style={{ background: "var(--bg-panel)", borderColor: "var(--border-card)" }}
+    >
       {latest && (
         <div>
-          <div className="text-xs text-gray-500">투자 자산</div>
-          <div className="text-2xl font-bold">{Math.round(latest.total_value).toLocaleString()}원</div>
-          <div className="text-sm text-gray-500">원금 {Math.round(latest.total_cost).toLocaleString()}원</div>
+          <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+            투자 자산
+          </div>
+          <div className="font-mono text-2xl font-bold" style={{ color: "var(--text-headline)" }}>
+            {Math.round(latest.total_value).toLocaleString()}원
+          </div>
+          <div className="text-sm" style={{ color: "var(--text-faint)" }}>
+            원금 {Math.round(latest.total_cost).toLocaleString()}원
+          </div>
         </div>
       )}
 
-      <LineChart snapshots={filtered} />
+      <TrendChart snapshots={filtered} />
 
       <div className="flex flex-wrap gap-1 text-xs">
         {RANGE_LABELS.map((r) => (
           <button
             key={r.key}
             onClick={() => setRange(r.key)}
-            className={`rounded-full border px-3 py-1 ${
-              range === r.key ? "bg-black text-white dark:bg-white dark:text-black" : "text-gray-500"
-            }`}
+            className="rounded-full border px-3 py-1"
+            style={
+              range === r.key
+                ? { background: "#1a2130", color: "var(--accent-teal)", borderColor: "var(--border-pill)" }
+                : { color: "var(--text-muted)", borderColor: "var(--border-pill)" }
+            }
           >
             {r.label}
           </button>

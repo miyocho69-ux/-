@@ -23,7 +23,10 @@ function BarChart({ data }: { data: { label: string; value: number }[] }) {
   return (
     <div className="relative">
       {hovered && (
-        <div className="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow dark:bg-gray-100 dark:text-black">
+        <div
+          className="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-xs shadow"
+          style={{ background: "var(--border-row)", color: "var(--text-body)" }}
+        >
           {hovered.label}: {formatSigned(hovered.value)}
         </div>
       )}
@@ -38,8 +41,12 @@ function BarChart({ data }: { data: { label: string; value: number }[] }) {
               onMouseLeave={() => setHovered(null)}
             >
               <div
-                className={`w-full rounded-sm ${d.value >= 0 ? "bg-red-500" : "bg-blue-500"}`}
-                style={{ height: `${heightPct}%`, minHeight: d.value !== 0 ? "2px" : "0" }}
+                className="w-full rounded-sm"
+                style={{
+                  height: `${heightPct}%`,
+                  minHeight: d.value !== 0 ? "2px" : "0",
+                  background: d.value >= 0 ? "var(--color-up)" : "var(--color-down)",
+                }}
               />
             </div>
           );
@@ -60,30 +67,59 @@ export function ProfitTab({
   const [range, setRange] = useState<"daily" | "monthly">("daily");
   const totalRealizedRate = totalCostBasis > 0 ? (realizedPnl / totalCostBasis) * 100 : 0;
 
+  const cardStyle = { background: "var(--bg-panel)", borderColor: "var(--border-card)" };
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border p-3">
-          <div className="text-xs text-gray-500">평가수익</div>
-          <div className={`text-lg font-semibold ${unrealizedPnl >= 0 ? "text-red-600" : "text-blue-600"}`}>
+      <div className="grid grid-cols-3 gap-3.5">
+        <div className="rounded-xl border p-4.5" style={cardStyle}>
+          <div className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+            평가손익 (오늘)
+          </div>
+          <div
+            className="font-mono text-[22px] font-bold"
+            style={{ color: unrealizedPnl >= 0 ? "var(--color-up)" : "var(--color-down)" }}
+          >
             {formatSigned(unrealizedPnl)}
           </div>
         </div>
-        <div className="rounded-lg border p-3">
-          <div className="text-xs text-gray-500">실현수익</div>
-          <div className={`text-lg font-semibold ${realizedPnl >= 0 ? "text-red-600" : "text-blue-600"}`}>
+        <div className="rounded-xl border p-4.5" style={cardStyle}>
+          <div className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+            실현손익
+          </div>
+          <div
+            className="font-mono text-[22px] font-bold"
+            style={{ color: realizedPnl >= 0 ? "var(--color-up)" : "var(--color-down)" }}
+          >
             {formatSigned(realizedPnl)}
           </div>
         </div>
-        <div className="rounded-lg border p-3">
-          <div className="text-xs text-gray-500">배당수익</div>
-          <div className="text-lg font-semibold text-gray-400">{formatSigned(dividendPnl)}</div>
+        <div
+          className="rounded-xl border p-4.5"
+          style={{ background: "var(--bg-panel)", borderColor: "#24d3b533" }}
+        >
+          <div className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+            총 손익 (실현+평가)
+          </div>
+          <div
+            className="font-mono text-[22px] font-bold"
+            style={{
+              color: unrealizedPnl + realizedPnl >= 0 ? "var(--color-up)" : "var(--color-down)",
+            }}
+          >
+            {formatSigned(unrealizedPnl + realizedPnl)}
+          </div>
         </div>
       </div>
 
-      <div className="rounded-lg border p-3">
-        <div className="text-xs text-gray-500">총 실현수익률</div>
-        <div className={`text-xl font-bold ${totalRealizedRate >= 0 ? "text-red-600" : "text-blue-600"}`}>
+      <div className="rounded-xl border p-4.5" style={cardStyle}>
+        <div className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          총 실현수익률
+        </div>
+        <div
+          className="font-mono text-xl font-bold"
+          style={{ color: totalRealizedRate >= 0 ? "var(--color-up)" : "var(--color-down)" }}
+        >
           {totalRealizedRate >= 0 ? "+" : ""}
           {totalRealizedRate.toFixed(2)}%
         </div>
@@ -91,17 +127,32 @@ export function ProfitTab({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">실현손익 차트</h3>
-          <div className="flex gap-1 rounded-md border p-0.5 text-xs">
+          <h3 className="font-semibold" style={{ color: "var(--text-body)" }}>
+            실현손익 차트
+          </h3>
+          <div
+            className="flex gap-1 rounded-md border p-0.5 text-xs"
+            style={{ background: "var(--bg-panel-alt)", borderColor: "var(--border-pill)" }}
+          >
             <button
               onClick={() => setRange("daily")}
-              className={`rounded px-2 py-1 ${range === "daily" ? "bg-black text-white dark:bg-white dark:text-black" : "text-gray-500"}`}
+              className="rounded px-2 py-1"
+              style={
+                range === "daily"
+                  ? { background: "#1a2130", color: "var(--accent-teal)" }
+                  : { color: "var(--text-muted)" }
+              }
             >
               일별
             </button>
             <button
               onClick={() => setRange("monthly")}
-              className={`rounded px-2 py-1 ${range === "monthly" ? "bg-black text-white dark:bg-white dark:text-black" : "text-gray-500"}`}
+              className="rounded px-2 py-1"
+              style={
+                range === "monthly"
+                  ? { background: "#1a2130", color: "var(--accent-teal)" }
+                  : { color: "var(--text-muted)" }
+              }
             >
               월별
             </button>

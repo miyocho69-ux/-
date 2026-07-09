@@ -23,16 +23,20 @@ export function PortfolioTabs({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 rounded-lg border p-1">
+      <div
+        className="flex w-fit gap-1.5 rounded-xl border p-1"
+        style={{ background: "var(--bg-panel-alt)", borderColor: "var(--border-pill)" }}
+      >
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActive(tab.key)}
-            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+            className="rounded-lg px-5.5 py-2.5 text-[13px] font-bold"
+            style={
               active === tab.key
-                ? "bg-black text-white dark:bg-white dark:text-black"
-                : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-            }`}
+                ? { background: "#1a2130", color: "var(--accent-teal)" }
+                : { color: "var(--text-muted)" }
+            }
           >
             {tab.label}
           </button>

@@ -18,16 +18,29 @@ export function AllocationTab({ byTicker, accounts, byAccountTicker }: Allocatio
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 rounded-md border p-0.5 text-xs">
+      <div
+        className="flex gap-1 rounded-lg border p-0.5 text-xs"
+        style={{ background: "var(--bg-panel-alt)", borderColor: "var(--border-pill)" }}
+      >
         <button
           onClick={() => setView("ticker")}
-          className={`flex-1 rounded px-3 py-1.5 ${view === "ticker" ? "bg-black text-white dark:bg-white dark:text-black" : "text-gray-500"}`}
+          className="flex-1 rounded px-3 py-1.5"
+          style={
+            view === "ticker"
+              ? { background: "#1a2130", color: "var(--accent-teal)" }
+              : { color: "var(--text-muted)" }
+          }
         >
           종목별
         </button>
         <button
           onClick={() => setView("account")}
-          className={`flex-1 rounded px-3 py-1.5 ${view === "account" ? "bg-black text-white dark:bg-white dark:text-black" : "text-gray-500"}`}
+          className="flex-1 rounded px-3 py-1.5"
+          style={
+            view === "account"
+              ? { background: "#1a2130", color: "var(--accent-teal)" }
+              : { color: "var(--text-muted)" }
+          }
         >
           계좌별
         </button>
@@ -37,7 +50,12 @@ export function AllocationTab({ byTicker, accounts, byAccountTicker }: Allocatio
         <select
           value={selectedAccountId}
           onChange={(e) => setSelectedAccountId(e.target.value)}
-          className="w-full rounded border px-3 py-2 text-sm"
+          className="w-full rounded-lg border px-3 py-2 text-sm"
+          style={{
+            background: "var(--border-row)",
+            borderColor: "var(--border-input)",
+            color: "var(--text-body)",
+          }}
         >
           {accounts.map((account) => (
             <option key={account.id} value={account.id}>
@@ -50,7 +68,9 @@ export function AllocationTab({ byTicker, accounts, byAccountTicker }: Allocatio
       {view === "ticker" ? (
         <SectorDonutChart slices={byTicker} title="종목별 비중" />
       ) : accounts.length === 0 ? (
-        <p className="text-sm text-gray-400">등록된 계좌가 없습니다.</p>
+        <p className="text-sm" style={{ color: "var(--text-faint)" }}>
+          등록된 계좌가 없습니다.
+        </p>
       ) : (
         <SectorDonutChart slices={accountSlices} title={`${selectedAccountName} 종목별 비중`} />
       )}
