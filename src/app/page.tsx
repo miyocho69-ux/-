@@ -3,6 +3,7 @@ import { syncHoldingPrices } from "@/lib/toss/prices";
 import { upsertTodaySnapshot } from "@/lib/portfolio/snapshot";
 import { PortfolioTabs } from "@/components/PortfolioTabs";
 import { ProfitTab } from "@/components/ProfitTab";
+import { TrendTab } from "@/components/TrendTab";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,11 @@ export default async function Home() {
   const dailyRealized = groupRealizedByDay(trades ?? [], 30);
   const monthlyRealized = groupRealizedByMonth(trades ?? [], 12);
 
+  const { data: snapshots } = await supabase
+    .from("portfolio_snapshots")
+    .select("date, total_value, total_cost")
+    .order("date", { ascending: true });
+
   return (
     <div className="mx-auto max-w-3xl p-8 space-y-6">
       <div>
@@ -139,7 +145,7 @@ export default async function Home() {
             monthlyRealized={monthlyRealized}
           />
         }
-        trendTab={<div className="text-gray-400">추이 탭 (Task 6에서 구현)</div>}
+        trendTab={<TrendTab snapshots={snapshots ?? []} />}
         allocationTab={<div className="text-gray-400">비중 탭 (Task 7에서 구현)</div>}
       />
     </div>
