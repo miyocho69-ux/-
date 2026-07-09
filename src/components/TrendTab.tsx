@@ -17,6 +17,16 @@ const RANGE_LABELS: { key: RangeKey; label: string }[] = [
   { key: "all", label: "전체" },
 ];
 
+// Date를 로컬(KST) 기준 연/월/일로 "YYYY-MM-DD" 문자열로 변환한다.
+// .toISOString()은 UTC로 변환하므로 KST(UTC+9) 자정은 전날 15:00 UTC가 되어
+// slice(0, 10) 시 하루 앞선 날짜가 나오는 문제가 있어 이 함수로 대체한다.
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function filterByRange(
   snapshots: TrendTabProps["snapshots"],
   range: RangeKey
@@ -28,9 +38,12 @@ function filterByRange(
     cutoff = range === "month" ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(now.getFullYear(), 0, 1);
   } else {
     const monthsBack = range === "1m" ? 1 : range === "6m" ? 6 : 12;
+    // 주의: 현재 일(day)이 대상 월에 존재하지 않으면(예: 3/31 - 1달 -> 2/31)
+    // Date가 다음 달로 자동 보정한다(2/31 -> 3/2~3). 근사치 필터 용도라 영향은
+    // 미미하지만 정확한 달력 경계가 필요해지면 day-count 기반 계산으로 교체할 것.
     cutoff = new Date(now.getFullYear(), now.getMonth() - monthsBack, now.getDate());
   }
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = toLocalDateString(cutoff);
   return snapshots.filter((s) => s.date >= cutoffStr);
 }
 
