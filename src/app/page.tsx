@@ -103,13 +103,23 @@ function groupByAccountTicker(
 }
 
 function computeHoldingsMovers(
-  holdings: { ticker: string; name: string; quantity: number; avg_cost: number; last_price: number | null }[],
+  holdings: {
+    account_id: string;
+    ticker: string;
+    name: string;
+    quantity: number;
+    avg_cost: number;
+    last_price: number | null;
+  }[],
   usdKrwRate: number
-): { name: string; ticker: string; changeRate: number; changeAmount: number }[] {
-  const totals = new Map<string, { name: string; costBasis: number; changeAmount: number }>();
+): { name: string; ticker: string; accountId: string; changeRate: number; changeAmount: number }[] {
+  const totals = new Map<
+    string,
+    { name: string; accountId: string; costBasis: number; changeAmount: number }
+  >();
 
   for (const h of holdings) {
-    if (h.last_price == null) continue; // 시세가 아직 없는 종목은 등락을 표시할 수 없다
+    if (h.last_price == null) continue;
     const costBasis = toKrw(Number(h.avg_cost) * Number(h.quantity), h.ticker, usdKrwRate);
     const changeAmount = toKrw(
       (Number(h.last_price) - Number(h.avg_cost)) * Number(h.quantity),
@@ -122,13 +132,14 @@ function computeHoldingsMovers(
       existing.costBasis += costBasis;
       existing.changeAmount += changeAmount;
     } else {
-      totals.set(h.ticker, { name: h.name, costBasis, changeAmount });
+      totals.set(h.ticker, { name: h.name, accountId: h.account_id, costBasis, changeAmount });
     }
   }
 
-  return Array.from(totals.entries()).map(([ticker, { name, costBasis, changeAmount }]) => ({
+  return Array.from(totals.entries()).map(([ticker, { name, accountId, costBasis, changeAmount }]) => ({
     name,
     ticker,
+    accountId,
     changeAmount,
     changeRate: costBasis > 0 ? (changeAmount / costBasis) * 100 : 0,
   }));
@@ -225,13 +236,22 @@ export default async function Home() {
   const movers: HoldingMover[] = computeHoldingsMovers(holdings ?? [], usdKrwRate);
 
   return (
-    <div className="mx-auto max-w-3xl p-8 space-y-6">
-      <div>
-        <div className="text-sm text-gray-500">총 평가금액</div>
-        <div className="text-3xl font-bold">{totalValue.toLocaleString()}원</div>
+    <div className="mx-auto max-w-4xl space-y-6 p-7 pb-[60px]">
+      <div className="mb-1 flex flex-wrap items-end gap-5">
+        <div>
+          <div className="mb-1.5 text-[13px]" style={{ color: "var(--text-muted)" }}>
+            총 평가금액
+          </div>
+          <div
+            className="font-mono text-[40px] font-bold tracking-tight"
+            style={{ color: "var(--text-headline)" }}
+          >
+            {Math.round(totalValue).toLocaleString()}원
+          </div>
+        </div>
       </div>
 
-      <HoldingsMoversCard movers={movers} />
+      <HoldingsMoversCard movers={movers} accounts={accounts ?? []} />
 
       <PortfolioTabs
         profitTab={
