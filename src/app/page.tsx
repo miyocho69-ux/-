@@ -76,6 +76,31 @@ function groupByTicker(
     .sort((a, b) => b.value - a.value);
 }
 
+function groupByAccountTicker(
+  holdings: {
+    account_id: string;
+    ticker: string;
+    name: string;
+    quantity: number;
+    avg_cost: number;
+    last_price: number | null;
+  }[],
+  usdKrwRate: number
+): Record<string, { sector: string; value: number }[]> {
+  const byAccount = new Map<string, typeof holdings>();
+  for (const h of holdings) {
+    const list = byAccount.get(h.account_id) ?? [];
+    list.push(h);
+    byAccount.set(h.account_id, list);
+  }
+
+  const result: Record<string, { sector: string; value: number }[]> = {};
+  for (const [accountId, accountHoldings] of byAccount.entries()) {
+    result[accountId] = groupByTicker(accountHoldings, usdKrwRate);
+  }
+  return result;
+}
+
 export default async function Home() {
   const supabase = createAdminClient();
 
@@ -121,6 +146,11 @@ export default async function Home() {
     return <div className="p-8 text-red-600">보유종목을 불러오지 못했습니다: {error.message}</div>;
   }
 
+  const { data: accounts } = await supabase
+    .from("accounts")
+    .select("id, name")
+    .order("created_at", { ascending: true });
+
   const { data: trades } = await supabase
     .from("trades")
     .select("traded_at, realized_pnl, ticker")
@@ -158,6 +188,7 @@ export default async function Home() {
     .order("date", { ascending: true });
 
   const byTicker = groupByTicker(holdings ?? [], usdKrwRate);
+  const byAccountTicker = groupByAccountTicker(holdings ?? [], usdKrwRate);
 
   return (
     <div className="mx-auto max-w-3xl p-8 space-y-6">
@@ -178,7 +209,13 @@ export default async function Home() {
           />
         }
         trendTab={<TrendTab snapshots={snapshots ?? []} />}
-        allocationTab={<AllocationTab byTicker={byTicker} byAccount={byTicker} />}
+        allocationTab={
+          <AllocationTab
+            byTicker={byTicker}
+            accounts={accounts ?? []}
+            byAccountTicker={byAccountTicker}
+          />
+        }
       />
     </div>
   );

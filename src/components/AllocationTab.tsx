@@ -5,11 +5,16 @@ import { SectorDonutChart, type SectorSlice } from "@/components/SectorDonutChar
 
 export interface AllocationTabProps {
   byTicker: SectorSlice[];
-  byAccount: SectorSlice[];
+  accounts: { id: string; name: string }[];
+  byAccountTicker: Record<string, SectorSlice[]>;
 }
 
-export function AllocationTab({ byTicker, byAccount }: AllocationTabProps) {
+export function AllocationTab({ byTicker, accounts, byAccountTicker }: AllocationTabProps) {
   const [view, setView] = useState<"ticker" | "account">("ticker");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(accounts[0]?.id ?? "");
+
+  const selectedAccountName = accounts.find((a) => a.id === selectedAccountId)?.name ?? "";
+  const accountSlices = byAccountTicker[selectedAccountId] ?? [];
 
   return (
     <div className="space-y-4">
@@ -28,10 +33,27 @@ export function AllocationTab({ byTicker, byAccount }: AllocationTabProps) {
         </button>
       </div>
 
-      <SectorDonutChart
-        slices={view === "ticker" ? byTicker : byAccount}
-        title={view === "ticker" ? "종목별 비중" : "계좌별 비중"}
-      />
+      {view === "account" && accounts.length > 0 && (
+        <select
+          value={selectedAccountId}
+          onChange={(e) => setSelectedAccountId(e.target.value)}
+          className="w-full rounded border px-3 py-2 text-sm"
+        >
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {view === "ticker" ? (
+        <SectorDonutChart slices={byTicker} title="종목별 비중" />
+      ) : accounts.length === 0 ? (
+        <p className="text-sm text-gray-400">등록된 계좌가 없습니다.</p>
+      ) : (
+        <SectorDonutChart slices={accountSlices} title={`${selectedAccountName} 종목별 비중`} />
+      )}
     </div>
   );
 }
