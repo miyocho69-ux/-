@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncHoldingPrices } from "@/lib/toss/prices";
 import { upsertTodaySnapshot } from "@/lib/portfolio/snapshot";
+import { upsertExchangeRate, getStoredUsdKrwRate } from "@/lib/toss/exchangeRate";
+import { toKrw } from "@/lib/portfolio/currency";
 import { PortfolioTabs } from "@/components/PortfolioTabs";
 import { ProfitTab } from "@/components/ProfitTab";
 import { TrendTab } from "@/components/TrendTab";
@@ -9,8 +11,9 @@ import { AllocationTab } from "@/components/AllocationTab";
 export const dynamic = "force-dynamic";
 
 function groupRealizedByDay(
-  trades: { traded_at: string; realized_pnl: number | null }[],
-  days: number
+  trades: { traded_at: string; realized_pnl: number | null; ticker: string }[],
+  days: number,
+  usdKrwRate: number
 ): { label: string; value: number }[] {
   const now = new Date(Date.now() + 9 * 60 * 60 * 1000); // KST-shifted "now"
   const buckets = new Map<string, number>();
@@ -23,15 +26,17 @@ function groupRealizedByDay(
   for (const t of trades) {
     if (t.realized_pnl == null) continue;
     if (buckets.has(t.traded_at)) {
-      buckets.set(t.traded_at, (buckets.get(t.traded_at) ?? 0) + Number(t.realized_pnl));
+      const value = toKrw(Number(t.realized_pnl), t.ticker, usdKrwRate);
+      buckets.set(t.traded_at, (buckets.get(t.traded_at) ?? 0) + value);
     }
   }
   return Array.from(buckets.entries()).map(([label, value]) => ({ label, value }));
 }
 
 function groupRealizedByMonth(
-  trades: { traded_at: string; realized_pnl: number | null }[],
-  months: number
+  trades: { traded_at: string; realized_pnl: number | null; ticker: string }[],
+  months: number,
+  usdKrwRate: number
 ): { label: string; value: number }[] {
   const now = new Date();
   const buckets = new Map<string, number>();
@@ -44,19 +49,21 @@ function groupRealizedByMonth(
     if (t.realized_pnl == null) continue;
     const label = t.traded_at.slice(0, 7);
     if (buckets.has(label)) {
-      buckets.set(label, (buckets.get(label) ?? 0) + Number(t.realized_pnl));
+      const value = toKrw(Number(t.realized_pnl), t.ticker, usdKrwRate);
+      buckets.set(label, (buckets.get(label) ?? 0) + value);
     }
   }
   return Array.from(buckets.entries()).map(([label, value]) => ({ label, value }));
 }
 
 function groupByTicker(
-  holdings: { ticker: string; name: string; quantity: number; avg_cost: number; last_price: number | null }[]
+  holdings: { ticker: string; name: string; quantity: number; avg_cost: number; last_price: number | null }[],
+  usdKrwRate: number
 ): { sector: string; value: number }[] {
   const totals = new Map<string, { label: string; value: number }>();
   for (const h of holdings) {
     const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
-    const value = price * Number(h.quantity);
+    const value = toKrw(price * Number(h.quantity), h.ticker, usdKrwRate);
     const existing = totals.get(h.ticker);
     if (existing) {
       existing.value += value;
@@ -66,26 +73,6 @@ function groupByTicker(
   }
   return Array.from(totals.values())
     .map(({ label, value }) => ({ sector: label, value }))
-    .sort((a, b) => b.value - a.value);
-}
-
-function groupByAccount(
-  holdings: {
-    quantity: number;
-    avg_cost: number;
-    last_price: number | null;
-    accounts: { name: string } | null;
-  }[]
-): { sector: string; value: number }[] {
-  const totals = new Map<string, number>();
-  for (const h of holdings) {
-    const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
-    const value = price * Number(h.quantity);
-    const accountName = h.accounts?.name ?? "알 수 없는 계좌";
-    totals.set(accountName, (totals.get(accountName) ?? 0) + value);
-  }
-  return Array.from(totals.entries())
-    .map(([sector, value]) => ({ sector, value }))
     .sort((a, b) => b.value - a.value);
 }
 
@@ -107,6 +94,7 @@ export default async function Home() {
         error_message: result.errorMessage,
       });
       if (result.syncedCount > 0) {
+        await upsertExchangeRate(supabase);
         await upsertTodaySnapshot(supabase);
       }
     } catch (err) {
@@ -135,41 +123,38 @@ export default async function Home() {
 
   const { data: trades } = await supabase
     .from("trades")
-    .select("traded_at, realized_pnl")
+    .select("traded_at, realized_pnl, ticker")
     .not("realized_pnl", "is", null);
+
+  const usdKrwRate = await getStoredUsdKrwRate(supabase);
 
   const totalValue = (holdings ?? []).reduce((sum, h) => {
     const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
-    return sum + Number(h.quantity) * price;
+    return sum + toKrw(Number(h.quantity) * price, h.ticker, usdKrwRate);
   }, 0);
 
   const unrealizedPnl = (holdings ?? []).reduce((sum, h) => {
     if (h.last_price == null) return sum;
-    return sum + (Number(h.last_price) - Number(h.avg_cost)) * Number(h.quantity);
+    const diff = (Number(h.last_price) - Number(h.avg_cost)) * Number(h.quantity);
+    return sum + toKrw(diff, h.ticker, usdKrwRate);
   }, 0);
 
   const realizedPnl = (trades ?? []).reduce((sum, t) => sum + Number(t.realized_pnl ?? 0), 0);
 
   const totalCostBasis = (holdings ?? []).reduce(
-    (sum, h) => sum + Number(h.avg_cost) * Number(h.quantity),
+    (sum, h) => sum + toKrw(Number(h.avg_cost) * Number(h.quantity), h.ticker, usdKrwRate),
     0
   );
 
-  const dailyRealized = groupRealizedByDay(trades ?? [], 30);
-  const monthlyRealized = groupRealizedByMonth(trades ?? [], 12);
+  const dailyRealized = groupRealizedByDay(trades ?? [], 30, usdKrwRate);
+  const monthlyRealized = groupRealizedByMonth(trades ?? [], 12, usdKrwRate);
 
   const { data: snapshots } = await supabase
     .from("portfolio_snapshots")
     .select("date, total_value, total_cost")
     .order("date", { ascending: true });
 
-  const byTicker = groupByTicker(holdings ?? []);
-  const byAccount = groupByAccount(
-    (holdings ?? []).map((h) => ({
-      ...h,
-      accounts: h.accounts as unknown as { name: string } | null,
-    }))
-  );
+  const byTicker = groupByTicker(holdings ?? [], usdKrwRate);
 
   return (
     <div className="mx-auto max-w-3xl p-8 space-y-6">
@@ -190,7 +175,7 @@ export default async function Home() {
           />
         }
         trendTab={<TrendTab snapshots={snapshots ?? []} />}
-        allocationTab={<AllocationTab byTicker={byTicker} byAccount={byAccount} />}
+        allocationTab={<AllocationTab byTicker={byTicker} byAccount={byTicker} />}
       />
     </div>
   );

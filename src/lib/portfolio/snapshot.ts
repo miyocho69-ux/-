@@ -1,22 +1,27 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { toKrw } from "@/lib/portfolio/currency";
+import { getStoredUsdKrwRate } from "@/lib/toss/exchangeRate";
 
 /**
  * 전체 계좌 합산 기준으로 오늘 날짜의 총평가금액/총매수원가를 계산해
  * portfolio_snapshots에 upsert한다. 하루에 여러 번 호출돼도 그날 값은 마지막 값으로 덮어써진다.
+ * USD 종목은 저장된 환율로 원화 환산 후 합산한다.
  */
 export async function upsertTodaySnapshot(supabase: SupabaseClient): Promise<void> {
   const { data: holdings, error } = await supabase
     .from("holdings")
-    .select("avg_cost, quantity, last_price");
+    .select("ticker, avg_cost, quantity, last_price");
   if (error) throw error;
+
+  const usdKrwRate = await getStoredUsdKrwRate(supabase);
 
   const totalValue = (holdings ?? []).reduce((sum, h) => {
     const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
-    return sum + price * Number(h.quantity);
+    return sum + toKrw(price * Number(h.quantity), h.ticker, usdKrwRate);
   }, 0);
 
   const totalCost = (holdings ?? []).reduce(
-    (sum, h) => sum + Number(h.avg_cost) * Number(h.quantity),
+    (sum, h) => sum + toKrw(Number(h.avg_cost) * Number(h.quantity), h.ticker, usdKrwRate),
     0
   );
 
