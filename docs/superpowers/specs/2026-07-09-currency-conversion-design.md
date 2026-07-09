@@ -1,4 +1,4 @@
-# 해외주식 원화 환산 설계
+# 해외주식 원화 환산 + 비중 탭 계좌별 뷰 개편 설계
 
 ## 배경
 
@@ -73,9 +73,19 @@ export function toKrw(value: number, ticker: string, usdKrwRate: number): number
 1. **`totalValue`**(총 평가금액 카드) — `(last_price ?? avg_cost) × quantity`를 원화 환산 후 합산
 2. **`totalCostBasis`**(총 실현수익률 분모) — `avg_cost × quantity`를 원화 환산 후 합산
 3. **`unrealizedPnl`**(평가수익) — `(last_price - avg_cost) × quantity`를 원화 환산 후 합산 (환율 변동 자체로 인한 손익은 이번 범위에서 별도 계산하지 않는다 — 현재 시점 환율로 평가금액과 매수원가를 각각 환산해 차이를 구하는 방식으로 충분히 근사)
-4. **`groupByTicker`/`groupByAccount`**(비중 탭) — 슬라이스 값 계산 시 원화 환산 적용
-5. **`upsertTodaySnapshot`**(추이 탭 스냅샷) — `total_value`/`total_cost` 계산에 원화 환산 적용. 이렇게 해야 추이 차트도 통화가 섞이지 않는다.
-6. **`groupRealizedByDay`/`groupRealizedByMonth`**(실현손익 차트) — `trades.realized_pnl`은 거래 시점의 원래 통화(그 거래의 `ticker` 통화)로 저장되어 있으므로, 합산 시 각 거래의 `ticker`로 통화를 판단해 원화 환산 후 더한다. 이를 위해 두 함수의 인자에 `ticker` 필드를 추가로 넘겨야 한다(`trades` select에 `ticker` 컬럼 추가).
+4. **`groupByTicker`**(비중 탭 "종목별") — 슬라이스 값 계산 시 원화 환산 적용
+5. **`groupByAccountTicker`**(비중 탭 "계좌별", 아래 섹션 참고) — 슬라이스 값 계산 시 원화 환산 적용
+6. **`upsertTodaySnapshot`**(추이 탭 스냅샷) — `total_value`/`total_cost` 계산에 원화 환산 적용. 이렇게 해야 추이 차트도 통화가 섞이지 않는다.
+7. **`groupRealizedByDay`/`groupRealizedByMonth`**(실현손익 차트) — `trades.realized_pnl`은 거래 시점의 원래 통화(그 거래의 `ticker` 통화)로 저장되어 있으므로, 합산 시 각 거래의 `ticker`로 통화를 판단해 원화 환산 후 더한다. 이를 위해 두 함수의 인자에 `ticker` 필드를 추가로 넘겨야 한다(`trades` select에 `ticker` 컬럼 추가).
+
+## 비중 탭 "계좌별" 뷰 개편
+
+기존 "계좌별" 뷰는 "계좌들이 전체에서 차지하는 비중"(계좌당 1슬라이스)을 보여줬는데, 실제로 원하는 건 **"계좌를 하나 선택하면 그 계좌 안의 종목별 비중"**이다.
+
+- `AllocationTab.tsx`에 계좌 선택 드롭다운을 추가한다("계좌별" 버튼을 누르면 드롭다운이 나타남, 기본값은 첫 번째 계좌).
+- 기존 `groupByAccount`(계좌당 1슬라이스, 전체 대비 계좌 비중)는 폐기하고, `groupByAccountTicker(holdings, accountId)`로 교체한다 — 지정된 `accountId`에 속한 holdings만 필터링해 `groupByTicker`와 동일한 로직(종목당 1슬라이스, 원화 환산 적용)으로 비중을 계산한다.
+- `page.tsx`는 각 계좌별로 미리 계산된 슬라이스 배열을 `Record<accountId, SectorSlice[]>` 형태로 `AllocationTab`에 전달하고, 드롭다운에서 선택된 계좌에 해당하는 배열만 화면에 표시한다(클라이언트 재계산 없이 서버에서 미리 계산된 데이터를 그대로 사용 — 기존 "종목별/계좌별 토글은 재요청 없이 클라이언트 상태만 바꾼다"는 설계 원칙 유지).
+- 계좌 목록/이름도 `AllocationTab`에 함께 전달해 드롭다운 라벨로 사용한다.
 
 ## 범위 밖
 
@@ -89,5 +99,6 @@ export function toKrw(value: number, ticker: string, usdKrwRate: number): number
 2. 로컬에서 실제 토스 환율 API 왕복 테스트(이미 1회 확인: 1 USD = 1503.4 KRW).
 3. `ENABLE_LOCAL_PRICE_SYNC=true`로 페이지 로드 → `exchange_rates`에 실제 환율 upsert 확인.
 4. 홈 화면 총 평가금액을 실제 holdings 데이터로 수기 계산(KRW 종목 합 + USD 종목 합 × 환율)한 값과 대조.
-5. 비중 탭에서 메리츠증권 해외주식 계좌의 슬라이스 값이 환산된 원화 기준으로 정확한지 확인.
+5. 비중 탭 "종목별"에서 메리츠증권 해외주식 계좌의 슬라이스 값이 환산된 원화 기준으로 정확한지 확인.
+6. 비중 탭 "계좌별"에서 계좌 드롭다운으로 "메리츠증권 해외주식"을 선택했을 때, 그 계좌 안의 12개 종목 각각의 비중(환산된 원화 기준)이 정확히 표시되는지 확인. 다른 계좌(예: 삼성증권 IRP)로 전환했을 때도 해당 계좌의 종목만 나오는지 확인.
 6. `npx tsc --noEmit`, `npm run build`로 `/`가 여전히 `ƒ (Dynamic)`인지 확인.
