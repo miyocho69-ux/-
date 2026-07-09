@@ -129,11 +129,6 @@ export default async function Home() {
     .select("traded_at, realized_pnl")
     .not("realized_pnl", "is", null);
 
-  const totalCost = (holdings ?? []).reduce(
-    (sum, h) => sum + Number(h.quantity) * Number(h.avg_cost),
-    0
-  );
-
   const totalValue = (holdings ?? []).reduce((sum, h) => {
     const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
     return sum + Number(h.quantity) * price;
