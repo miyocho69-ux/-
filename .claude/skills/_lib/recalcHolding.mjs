@@ -6,7 +6,7 @@
 export async function recalcHolding(supabase, accountId, ticker) {
   const { data: trades, error: fetchError } = await supabase
     .from("trades")
-    .select("side, quantity, price, name, traded_at")
+    .select("id, side, quantity, price, name, traded_at")
     .eq("account_id", accountId)
     .eq("ticker", ticker)
     .order("traded_at", { ascending: true })
@@ -28,11 +28,19 @@ export async function recalcHolding(supabase, accountId, ticker) {
       quantity += tradeQty;
       avgCost = quantity > 0 ? totalCost / quantity : 0;
     } else {
+      const realizedPnl = (tradePrice - avgCost) * tradeQty;
+      const { error: pnlError } = await supabase
+        .from("trades")
+        .update({ realized_pnl: realizedPnl })
+        .eq("id", trade.id);
+      if (pnlError) throw pnlError;
+
       quantity -= tradeQty;
       if (quantity <= 0) {
         quantity = 0;
         avgCost = 0;
       }
+      // 매도는 평단가에 영향을 주지 않는다 (남은 수량의 평단가는 유지)
     }
   }
 
