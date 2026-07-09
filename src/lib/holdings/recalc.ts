@@ -4,6 +4,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
  * account_id + ticker의 모든 trades를 시간순으로 재생해 quantity/avg_cost를 다시 계산하고
  * holdings 테이블에 반영한다. 매수/매도가 발생할 때마다 이 함수 하나만 거치도록 해서
  * 재계산 로직이 여러 곳에 흩어지지 않게 한다.
+ * 매도 거래는 처리 시점에 확정 손익(realized_pnl)을 계산해 해당 trades 행에 저장한다.
  */
 export async function recalcHolding(
   supabase: SupabaseClient,
@@ -12,7 +13,7 @@ export async function recalcHolding(
 ) {
   const { data: trades, error: fetchError } = await supabase
     .from("trades")
-    .select("side, quantity, price, name, traded_at")
+    .select("id, side, quantity, price, name, traded_at")
     .eq("account_id", accountId)
     .eq("ticker", ticker)
     .order("traded_at", { ascending: true })
@@ -34,6 +35,13 @@ export async function recalcHolding(
       quantity += tradeQty;
       avgCost = quantity > 0 ? totalCost / quantity : 0;
     } else {
+      const realizedPnl = (tradePrice - avgCost) * tradeQty;
+      const { error: pnlError } = await supabase
+        .from("trades")
+        .update({ realized_pnl: realizedPnl })
+        .eq("id", trade.id);
+      if (pnlError) throw pnlError;
+
       quantity -= tradeQty;
       if (quantity <= 0) {
         quantity = 0;
