@@ -17,7 +17,7 @@ description: MTS(모바일 증권앱)에서 캡처한 매매 체결/주문 내�
    ```
 
 3. **파싱 결과 확인**: 추출한 매매기록(계좌/종목/매수·매도/수량/단가/일자)을 사용자에게 보여주고 확인받는다. 특히 매수/매도 구분과 수량·단가는 오인식 시 holdings가 잘못 계산되므로 반드시 확인 단계를 거친다.
-4. **등록**: 확인이 끝나면 아래 스크립트로 등록한다. 이 스크립트는 `trades`에 insert 후 자동으로 `holdings`를 재계산한다(매도 시 `realized_pnl`도 함께 계산됨).
+4. **등록**: 확인이 끝나면 아래 스크립트로 등록한다. 이 스크립트는 `trades`에 insert 후 자동으로 `holdings`를 재계산하고(매도 시 `realized_pnl`도 함께 계산됨), `portfolio_snapshots`의 오늘 날짜 행도 최신 값으로 갱신한다(홈 화면 "투자 자산" 값이 로컬 dev 서버 재시작 전까지 낡아있는 문제 방지).
 
    ```
    node .claude/skills/_lib/insertTrade.mjs "<accountId>" "<ticker>" "<name>" <buy|sell> <quantity> <price> <YYYY-MM-DD> ["memo"]
@@ -55,3 +55,8 @@ description: MTS(모바일 증권앱)에서 캡처한 매매 체결/주문 내�
 - `.env.local`의 Supabase 자격증명을 사용하므로 프로젝트 루트(`D:\클로드`)에서 실행해야 한다.
 - Notion 갱신(6단계)은 이 Claude Code 세션에서 Notion 커넥터를 통해서만 가능하다. 배포된 웹 대시보드나 `.mjs` 스크립트 자체는 Notion에 접근할 수 없다 — 그래서 이 갱신은 "완전 자동"이 아니라 "이 스킬을 실행하는 세션마다 자동으로 수행"되는 것이다.
 - 두 Notion 페이지의 ID는 하드코딩되어 있다. 페이지가 삭제되거나 다른 곳으로 옮겨지면 이 스킬 문서의 ID도 함께 갱신해야 한다.
+- `portfolio_snapshots`를 이 스킬과 무관하게 지금 바로 갱신하고 싶으면(예: 시세만 변동해서 매매기록 없이 최신화하고 싶을 때) 아래를 직접 실행하면 된다.
+
+  ```
+  node .claude/skills/_lib/snapshot.mjs
+  ```
