@@ -26,3 +26,18 @@ export async function deleteAccount(accountId: string) {
 
   revalidatePath("/accounts");
 }
+
+export async function renameAccount(accountId: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error("계좌 이름은 비어 있을 수 없습니다.");
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("accounts").update({ name: trimmed }).eq("id", accountId);
+  if (error) throw error;
+
+  revalidatePath("/accounts");
+  revalidatePath("/");
+  revalidatePath("/analysis");
+}
