@@ -134,7 +134,7 @@ export function HoldingsMoversCard({ movers, accounts }: HoldingsMoversCardProps
       <div className="max-h-[420px] overflow-auto">
         {sorted.map((m, i) => (
           <div
-            key={m.ticker}
+            key={`${m.accountId}:${m.ticker}`}
             className="flex items-center gap-3 border-t px-4.5 py-2.5"
             style={{ borderColor: "var(--border-row)" }}
           >

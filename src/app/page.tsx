@@ -113,6 +113,9 @@ function computeHoldingsMovers(
   }[],
   usdKrwRate: number
 ): { name: string; ticker: string; accountId: string; changeRate: number; changeAmount: number }[] {
+  // 계좌 필터가 정확히 동작하려면 티커 단독이 아니라 (계좌, 티커) 조합으로 집계해야 한다.
+  // 같은 티커가 여러 계좌에 나뉘어 있을 때 티커만으로 묶으면 특정 계좌로만 귀속되어
+  // 나머지 계좌에서는 해당 종목이 보이지 않는 문제가 있었다.
   const totals = new Map<
     string,
     { name: string; accountId: string; costBasis: number; changeAmount: number }
@@ -127,18 +130,19 @@ function computeHoldingsMovers(
       usdKrwRate
     );
 
-    const existing = totals.get(h.ticker);
+    const key = `${h.account_id}:${h.ticker}`;
+    const existing = totals.get(key);
     if (existing) {
       existing.costBasis += costBasis;
       existing.changeAmount += changeAmount;
     } else {
-      totals.set(h.ticker, { name: h.name, accountId: h.account_id, costBasis, changeAmount });
+      totals.set(key, { name: h.name, accountId: h.account_id, costBasis, changeAmount });
     }
   }
 
-  return Array.from(totals.entries()).map(([ticker, { name, accountId, costBasis, changeAmount }]) => ({
+  return Array.from(totals.entries()).map(([key, { name, accountId, costBasis, changeAmount }]) => ({
     name,
-    ticker,
+    ticker: key.split(":")[1],
     accountId,
     changeAmount,
     changeRate: costBasis > 0 ? (changeAmount / costBasis) * 100 : 0,
