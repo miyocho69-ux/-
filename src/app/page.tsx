@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncHoldingPrices } from "@/lib/toss/prices";
+import { upsertTodaySnapshot } from "@/lib/portfolio/snapshot";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,9 @@ export default async function Home() {
         failed_tickers: result.failedTickers,
         error_message: result.errorMessage,
       });
+      if (result.syncedCount > 0) {
+        await upsertTodaySnapshot(supabase);
+      }
     } catch (err) {
       const finishedAt = new Date().toISOString();
       const errorMessage = err instanceof Error ? err.message : String(err);
