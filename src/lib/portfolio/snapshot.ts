@@ -20,7 +20,8 @@ export async function upsertTodaySnapshot(supabase: SupabaseClient): Promise<voi
     0
   );
 
-  const today = new Date().toISOString().slice(0, 10);
+  const kstDate = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const today = kstDate.toISOString().slice(0, 10);
 
   const { error: upsertError } = await supabase
     .from("portfolio_snapshots")
