@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { setUserSector, clearUserSector } from "@/lib/actions/sectors";
 import { SectorDonutChart, type SectorSlice } from "@/components/SectorDonutChart";
+import { toKrw } from "@/lib/portfolio/currency";
+import { getStoredUsdKrwRate } from "@/lib/toss/exchangeRate";
 
 export const dynamic = "force-dynamic";
 
@@ -8,12 +10,13 @@ const UNCLASSIFIED = "미분류";
 
 function groupBySector(
   holdings: { ticker: string; quantity: number; avg_cost: number }[],
-  sectorByTicker: Map<string, string>
+  sectorByTicker: Map<string, string>,
+  usdKrwRate: number
 ): SectorSlice[] {
   const totals = new Map<string, number>();
   for (const h of holdings) {
     const sector = sectorByTicker.get(h.ticker) ?? UNCLASSIFIED;
-    const value = Number(h.quantity) * Number(h.avg_cost);
+    const value = toKrw(Number(h.quantity) * Number(h.avg_cost), h.ticker, usdKrwRate);
     totals.set(sector, (totals.get(sector) ?? 0) + value);
   }
   return Array.from(totals.entries())
@@ -49,14 +52,16 @@ export default async function AnalysisPage() {
     (sectors ?? []).map((s) => [s.ticker, s.user_sector ?? s.ai_sector ?? UNCLASSIFIED])
   );
 
+  const usdKrwRate = await getStoredUsdKrwRate(supabase);
+
   const allHoldings = holdings ?? [];
-  const totalSlices = groupBySector(allHoldings, sectorByTicker);
+  const totalSlices = groupBySector(allHoldings, sectorByTicker, usdKrwRate);
 
   const accountGroups = (accounts ?? []).map((account) => {
     const accountHoldings = allHoldings.filter((h) => h.account_id === account.id);
     return {
       account,
-      slices: groupBySector(accountHoldings, sectorByTicker),
+      slices: groupBySector(accountHoldings, sectorByTicker, usdKrwRate),
     };
   });
 
