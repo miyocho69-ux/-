@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Noto_Sans_KR } from "next/font/google";
 import { NavBar } from "@/components/NavBar";
+import { MarketSidebar } from "@/components/MarketSidebar";
 import "./globals.css";
 
 const notoSansKr = Noto_Sans_KR({
@@ -30,9 +31,12 @@ export default function RootLayout({
       lang="ko"
       className={`${notoSansKr.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#080a10]">
+      <body className="flex h-full min-h-full flex-col bg-[#080a10]">
         <NavBar />
-        {children}
+        <div className="flex min-h-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-auto">{children}</div>
+          <MarketSidebar />
+        </div>
       </body>
     </html>
   );
