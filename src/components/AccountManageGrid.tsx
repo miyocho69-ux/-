@@ -126,6 +126,7 @@ function AccountCard({ account }: { account: AccountCardData }) {
 
 function AddAccountCard() {
   const [name, setName] = useState("");
+  const [market, setMarket] = useState<"KR" | "US">("KR");
   const [isPending, startTransition] = useTransition();
 
   const submit = () => {
@@ -133,7 +134,7 @@ function AddAccountCard() {
     if (!trimmed) return;
     const formData = new FormData();
     formData.set("name", trimmed);
-    formData.set("market", "KR");
+    formData.set("market", market);
     startTransition(async () => {
       await createAccount(formData);
       setName("");
@@ -163,6 +164,33 @@ function AddAccountCard() {
           color: "var(--text-body)",
         }}
       />
+      <div
+        className="flex gap-[3px] rounded-lg border p-[3px]"
+        style={{ background: "var(--bg-panel-alt)", borderColor: "var(--border-pill)" }}
+      >
+        <button
+          onClick={() => setMarket("KR")}
+          className="rounded-md px-3 py-1 text-xs font-semibold"
+          style={
+            market === "KR"
+              ? { background: "#1a2130", color: "var(--accent-teal)" }
+              : { color: "var(--text-muted)" }
+          }
+        >
+          국내
+        </button>
+        <button
+          onClick={() => setMarket("US")}
+          className="rounded-md px-3 py-1 text-xs font-semibold"
+          style={
+            market === "US"
+              ? { background: "#1a2130", color: "var(--accent-teal)" }
+              : { color: "var(--text-muted)" }
+          }
+        >
+          미국
+        </button>
+      </div>
       <button
         onClick={submit}
         disabled={isPending}
