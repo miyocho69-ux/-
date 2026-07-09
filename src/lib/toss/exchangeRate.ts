@@ -14,6 +14,22 @@ export async function getUsdKrwRate(): Promise<number> {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
+  if (res.status === 401) {
+    // 토스는 client당 access token을 1개만 유지하며 재발급 시 이전 토큰을 즉시 무효화한다.
+    // DB 캐시가 만료 전이라 판단해도 다른 곳에서 재발급되며 이미 무효화됐을 수 있으므로,
+    // 강제로 새 토큰을 받아 한 번만 재시도한다.
+    const freshToken = await getTossAccessToken(true);
+    const retryRes = await fetch(url, {
+      headers: { Authorization: `Bearer ${freshToken}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!retryRes.ok) {
+      throw new Error(`환율 조회 실패 (토큰 재발급 후에도 ${retryRes.status})`);
+    }
+    const retryJson = (await retryRes.json()) as { result: { rate: string } };
+    return Number(retryJson.result.rate);
+  }
+
   if (!res.ok) {
     throw new Error(`환율 조회 실패 (${res.status})`);
   }

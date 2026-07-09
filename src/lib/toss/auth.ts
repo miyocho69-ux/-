@@ -40,7 +40,7 @@ async function fetchNewToken(): Promise<{ accessToken: string; expiresAt: Date }
   return { accessToken: json.access_token, expiresAt };
 }
 
-export async function getTossAccessToken(): Promise<string> {
+export async function getTossAccessToken(forceRefresh = false): Promise<string> {
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -52,7 +52,7 @@ export async function getTossAccessToken(): Promise<string> {
 
   const now = Date.now();
   const cachedExpiry = data?.token_expires_at ? new Date(data.token_expires_at).getTime() : 0;
-  const isValid = data?.access_token_encrypted && cachedExpiry - now > EXPIRY_BUFFER_MS;
+  const isValid = !forceRefresh && data?.access_token_encrypted && cachedExpiry - now > EXPIRY_BUFFER_MS;
 
   if (isValid) {
     return data!.access_token_encrypted!;
