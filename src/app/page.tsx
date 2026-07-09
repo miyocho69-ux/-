@@ -12,12 +12,13 @@ function groupRealizedByDay(
   trades: { traded_at: string; realized_pnl: number | null }[],
   days: number
 ): { label: string; value: number }[] {
-  const now = new Date();
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000); // KST-shifted "now"
   const buckets = new Map<string, number>();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    buckets.set(d.toISOString().slice(0, 10), 0);
+    d.setUTCDate(d.getUTCDate() - i);
+    const label = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    buckets.set(label, 0);
   }
   for (const t of trades) {
     if (t.realized_pnl == null) continue;
