@@ -4,6 +4,7 @@ import { upsertTodaySnapshot } from "@/lib/portfolio/snapshot";
 import { PortfolioTabs } from "@/components/PortfolioTabs";
 import { ProfitTab } from "@/components/ProfitTab";
 import { TrendTab } from "@/components/TrendTab";
+import { AllocationTab } from "@/components/AllocationTab";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,37 @@ function groupRealizedByMonth(
     }
   }
   return Array.from(buckets.entries()).map(([label, value]) => ({ label, value }));
+}
+
+function groupByTicker(
+  holdings: { ticker: string; name: string; quantity: number; avg_cost: number; last_price: number | null }[]
+): { sector: string; value: number }[] {
+  return holdings
+    .map((h) => {
+      const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
+      return { sector: `${h.name} (${h.ticker})`, value: price * Number(h.quantity) };
+    })
+    .sort((a, b) => b.value - a.value);
+}
+
+function groupByAccount(
+  holdings: {
+    quantity: number;
+    avg_cost: number;
+    last_price: number | null;
+    accounts: { name: string } | null;
+  }[]
+): { sector: string; value: number }[] {
+  const totals = new Map<string, number>();
+  for (const h of holdings) {
+    const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
+    const value = price * Number(h.quantity);
+    const accountName = h.accounts?.name ?? "알 수 없는 계좌";
+    totals.set(accountName, (totals.get(accountName) ?? 0) + value);
+  }
+  return Array.from(totals.entries())
+    .map(([sector, value]) => ({ sector, value }))
+    .sort((a, b) => b.value - a.value);
 }
 
 export default async function Home() {
@@ -127,6 +159,14 @@ export default async function Home() {
     .select("date, total_value, total_cost")
     .order("date", { ascending: true });
 
+  const byTicker = groupByTicker(holdings ?? []);
+  const byAccount = groupByAccount(
+    (holdings ?? []).map((h) => ({
+      ...h,
+      accounts: h.accounts as unknown as { name: string } | null,
+    }))
+  );
+
   return (
     <div className="mx-auto max-w-3xl p-8 space-y-6">
       <div>
@@ -146,7 +186,7 @@ export default async function Home() {
           />
         }
         trendTab={<TrendTab snapshots={snapshots ?? []} />}
-        allocationTab={<div className="text-gray-400">비중 탭 (Task 7에서 구현)</div>}
+        allocationTab={<AllocationTab byTicker={byTicker} byAccount={byAccount} />}
       />
     </div>
   );
