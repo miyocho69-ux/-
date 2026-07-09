@@ -139,7 +139,10 @@ export default async function Home() {
     return sum + toKrw(diff, h.ticker, usdKrwRate);
   }, 0);
 
-  const realizedPnl = (trades ?? []).reduce((sum, t) => sum + Number(t.realized_pnl ?? 0), 0);
+  const realizedPnl = (trades ?? []).reduce(
+    (sum, t) => sum + toKrw(Number(t.realized_pnl ?? 0), t.ticker, usdKrwRate),
+    0
+  );
 
   const totalCostBasis = (holdings ?? []).reduce(
     (sum, h) => sum + toKrw(Number(h.avg_cost) * Number(h.quantity), h.ticker, usdKrwRate),
