@@ -5,6 +5,7 @@ const NAV_LINKS = [
   { href: "/accounts", label: "계좌 관리" },
   { href: "/trades", label: "매매기록" },
   { href: "/analysis", label: "계좌 분석" },
+  { href: "/risk", label: "리스크 분석" },
 ];
 
 function todayKst(): string {
