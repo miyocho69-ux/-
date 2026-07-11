@@ -38,6 +38,10 @@ export async function getUsdKrwRate(): Promise<number> {
   return Number(json.result.rate);
 }
 
+function kstToday(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 export async function upsertExchangeRate(supabase: SupabaseClient): Promise<void> {
   const rate = await getUsdKrwRate();
   const { error } = await supabase.from("exchange_rates").upsert(
@@ -50,6 +54,17 @@ export async function upsertExchangeRate(supabase: SupabaseClient): Promise<void
     { onConflict: "base_currency" }
   );
   if (error) throw error;
+
+  // 오늘자 daily row는 그날의 첫 관측값으로 고정한다 (이후 재호출돼도 덮어쓰지 않음) --
+  // 그래야 "전일 대비"가 하루 중 마지막 조회 시점이 아니라 날짜 단위로 일관되게 계산된다.
+  const { data: existing } = await supabase
+    .from("exchange_rate_daily")
+    .select("date")
+    .eq("date", kstToday())
+    .maybeSingle();
+  if (!existing) {
+    await supabase.from("exchange_rate_daily").insert({ date: kstToday(), rate });
+  }
 }
 
 export async function getStoredUsdKrwRate(supabase: SupabaseClient): Promise<number> {
@@ -60,4 +75,20 @@ export async function getStoredUsdKrwRate(supabase: SupabaseClient): Promise<num
     .maybeSingle();
   if (error) throw error;
   return data?.rate != null ? Number(data.rate) : FALLBACK_USD_KRW_RATE;
+}
+
+/** 오늘 대비 전일 USD/KRW 등락률(%). 전일 데이터가 없으면 null. */
+export async function getUsdKrwChangePct(supabase: SupabaseClient): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("exchange_rate_daily")
+    .select("date, rate")
+    .order("date", { ascending: false })
+    .limit(2);
+  if (error) throw error;
+  if (!data || data.length < 2) return null;
+
+  const [latest, previous] = data;
+  const prevRate = Number(previous.rate);
+  if (prevRate === 0) return null;
+  return ((Number(latest.rate) - prevRate) / prevRate) * 100;
 }

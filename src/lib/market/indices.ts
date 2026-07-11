@@ -1,52 +1,55 @@
 import "server-only";
+import { getTossAccessToken } from "@/lib/toss/auth";
 
-// Yahoo Finance의 비공식(문서화되지 않은) 차트 API를 사용한다.
-// 토스 공식 API(openapi.tossinvest.com)는 개별 종목만 지원하고 지수 심볼(KS11/KQ11/SPX/VIX 등)에는
-// 빈 결과를 반환함을 실측으로 확인했다(2026-07-09). 이 엔드포인트는 언제든 응답 형식이
-// 바뀌거나 차단될 수 있으므로, 실패 시 개별 항목만 null로 남기고 절대 throw하지 않는다.
-const CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
-const FETCH_TIMEOUT_MS = 5_000;
+// 코스피/코스닥 지수 심볼(KS11/KQ11 등)은 토스 공식 API에서 개별 종목 시세로 조회되지 않아
+// 대신 지수를 추종하는 실제 매매 가능한 ETF로 대체한다: 미국 3대 지수(VOO/QQQ/DIA), 국내 2개
+// (KODEX 200/코스닥150). 전일 대비 등락률은 캔들 API(interval=1d, count=2)의 최근 두 봉으로 계산.
+const CANDLES_URL = "https://openapi.tossinvest.com/api/v1/candles";
+const FETCH_TIMEOUT_MS = 10_000;
 
 const INDEX_DEFS: { key: IndexQuote["key"]; label: string; symbol: string }[] = [
-  { key: "kospi", label: "코스피", symbol: "^KS11" },
-  { key: "kosdaq", label: "코스닥", symbol: "^KQ11" },
-  { key: "sp500", label: "S&P 500", symbol: "^GSPC" },
-  { key: "vix", label: "VIX", symbol: "^VIX" },
+  { key: "voo", label: "VOO (S&P500)", symbol: "VOO" },
+  { key: "qqq", label: "QQQ (나스닥100)", symbol: "QQQ" },
+  { key: "dia", label: "DIA (다우)", symbol: "DIA" },
+  { key: "kospi200", label: "KODEX 코스피200", symbol: "069500" },
+  { key: "kosdaq150", label: "KODEX 코스닥150", symbol: "229200" },
 ];
 
 export interface IndexQuote {
-  key: "kospi" | "kosdaq" | "sp500" | "vix";
+  key: "voo" | "qqq" | "dia" | "kospi200" | "kosdaq150";
   label: string;
   price: number | null;
   changePct: number | null;
 }
 
-interface YahooChartMeta {
-  regularMarketPrice?: number;
-  chartPreviousClose?: number;
+interface TossCandle {
+  timestamp: string;
+  closePrice: string;
 }
 
-async function fetchOne(def: (typeof INDEX_DEFS)[number]): Promise<IndexQuote> {
+async function fetchOne(def: (typeof INDEX_DEFS)[number], accessToken: string): Promise<IndexQuote> {
   try {
-    const url = `${CHART_URL}/${encodeURIComponent(def.symbol)}?interval=1d&range=1d`;
+    const url = `${CANDLES_URL}?symbol=${encodeURIComponent(def.symbol)}&interval=1d&count=2`;
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       next: { revalidate: 60 },
     });
     if (!res.ok) {
       return { key: def.key, label: def.label, price: null, changePct: null };
     }
-    const json = (await res.json()) as {
-      chart: { result: { meta: YahooChartMeta }[] | null };
-    };
-    const meta = json.chart.result?.[0]?.meta;
-    const price = meta?.regularMarketPrice;
-    const prevClose = meta?.chartPreviousClose;
-    if (price == null || prevClose == null || prevClose === 0) {
-      return { key: def.key, label: def.label, price: price ?? null, changePct: null };
+    const json = (await res.json()) as { result: { candles: TossCandle[] } };
+    const candles = json.result?.candles ?? [];
+    if (candles.length === 0) {
+      return { key: def.key, label: def.label, price: null, changePct: null };
     }
-    const changePct = ((price - prevClose) / prevClose) * 100;
+
+    const price = Number(candles[0].closePrice);
+    if (candles.length < 2) {
+      return { key: def.key, label: def.label, price, changePct: null };
+    }
+    const prevClose = Number(candles[1].closePrice);
+    const changePct = prevClose !== 0 ? ((price - prevClose) / prevClose) * 100 : null;
     return { key: def.key, label: def.label, price, changePct };
   } catch {
     return { key: def.key, label: def.label, price: null, changePct: null };
@@ -54,10 +57,15 @@ async function fetchOne(def: (typeof INDEX_DEFS)[number]): Promise<IndexQuote> {
 }
 
 export async function getMarketIndices(): Promise<IndexQuote[]> {
-  const results = await Promise.allSettled(INDEX_DEFS.map(fetchOne));
-  return results.map((r, i) =>
-    r.status === "fulfilled"
-      ? r.value
-      : { key: INDEX_DEFS[i].key, label: INDEX_DEFS[i].label, price: null, changePct: null }
-  );
+  try {
+    const accessToken = await getTossAccessToken();
+    const results = await Promise.allSettled(INDEX_DEFS.map((def) => fetchOne(def, accessToken)));
+    return results.map((r, i) =>
+      r.status === "fulfilled"
+        ? r.value
+        : { key: INDEX_DEFS[i].key, label: INDEX_DEFS[i].label, price: null, changePct: null }
+    );
+  } catch {
+    return INDEX_DEFS.map((def) => ({ key: def.key, label: def.label, price: null, changePct: null }));
+  }
 }
