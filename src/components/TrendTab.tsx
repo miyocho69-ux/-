@@ -72,6 +72,12 @@ function TrendChart({ snapshots }: { snapshots: TrendTabProps["snapshots"] }) {
     총자산: Math.round(s.total_value),
   }));
 
+  const values = data.flatMap((d) => [d.원금, d.총자산]);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const padding = (maxValue - minValue) * 0.1 || maxValue * 0.05;
+  const yDomain: [number, number] = [Math.max(0, Math.floor(minValue - padding)), Math.ceil(maxValue + padding)];
+
   return (
     <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -84,6 +90,7 @@ function TrendChart({ snapshots }: { snapshots: TrendTabProps["snapshots"] }) {
           tickLine={false}
         />
         <YAxis
+          domain={yDomain}
           tick={{ fill: "var(--text-faint)", fontSize: 11 }}
           tickFormatter={(v: number) => `${Math.round(v / 10000).toLocaleString()}만`}
           axisLine={false}

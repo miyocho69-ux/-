@@ -82,6 +82,7 @@ export default async function AnalysisPage() {
     const sectorSlices = groupBySector(scopedHoldings, sectorByTicker, usdKrwRate);
     const sectorTotal = sectorSlices.reduce((sum, s) => sum + s.value, 0) || 1;
 
+    let cumulativePct = 0;
     const holdingsTable = [...scopedHoldings]
       .map((h) => {
         const price = h.last_price != null ? Number(h.last_price) : Number(h.avg_cost);
@@ -97,7 +98,11 @@ export default async function AnalysisPage() {
           weightPct: (evalAmount / sectorTotal) * 100,
         };
       })
-      .sort((a, b) => b.evalAmount - a.evalAmount);
+      .sort((a, b) => b.evalAmount - a.evalAmount)
+      .map((h) => {
+        cumulativePct += h.weightPct;
+        return { ...h, cumulativePct };
+      });
 
     const content = (
       <div className="space-y-5">
@@ -187,6 +192,17 @@ export default async function AnalysisPage() {
           <div className="px-4.5 pb-2.5 pt-4 text-sm font-bold" style={{ color: "var(--text-body)" }}>
             보유 종목
           </div>
+          <div
+            className="flex items-center px-4.5 pb-2 text-xs"
+            style={{ color: "var(--text-faint)" }}
+          >
+            <div className="min-w-0 flex-1">종목</div>
+            <div className="w-[100px] shrink-0">섹터</div>
+            <div className="w-20 shrink-0 text-right">수익률</div>
+            <div className="w-[130px] shrink-0 text-right">평가금액</div>
+            <div className="w-[70px] shrink-0 text-right">비중</div>
+            <div className="w-[70px] shrink-0 text-right">누적비중</div>
+          </div>
           <div className="max-h-[360px] overflow-auto">
             {holdingsTable.map((h) => (
               <div
@@ -214,6 +230,9 @@ export default async function AnalysisPage() {
                 </div>
                 <div className="w-[70px] shrink-0 text-right font-mono" style={{ color: "var(--text-faint)" }}>
                   {h.weightPct.toFixed(1)}%
+                </div>
+                <div className="w-[70px] shrink-0 text-right font-mono" style={{ color: "var(--text-faint)" }}>
+                  {h.cumulativePct.toFixed(1)}%
                 </div>
               </div>
             ))}
